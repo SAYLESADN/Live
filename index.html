@@ -275,6 +275,13 @@ div#noteLayer{position:absolute;top:0;left:0}
 .land-conn{position:absolute;pointer-events:none;z-index:1}
 .land-overlay{position:absolute;inset:0;z-index:2}
 .land-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--text3)}
+
+/* ═══ FLOW CODE IMPORT ═══ */
+.fc-area{width:100%;min-height:180px;border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;font-family:'Courier New',monospace;resize:vertical;outline:none;background:#fff;color:var(--text);line-height:1.7;tab-size:2}
+.fc-area:focus{border-color:var(--rose)}
+.fc-area::placeholder{font-family:inherit;color:var(--text3)}
+.fc-ref{font-size:9px;color:var(--text3);line-height:1.7;padding:8px;background:var(--cream);border-radius:6px;margin-bottom:8px}
+.fc-ref code{background:var(--blush);padding:1px 4px;border-radius:3px;font-size:9px;color:var(--rose);font-family:'Courier New',monospace}
 </style>
 </head>
 <body>
@@ -295,6 +302,7 @@ div#noteLayer{position:absolute;top:0;left:0}
     <button class="tp" id="phLandscape" onclick="setPhase('landscape')">🗺 Landscape</button>
   </div>
   <div class="tb-r">
+    <button class="tbtn tbtn-s" onclick="openFlowImport()">📋 Import</button>
     <button class="tbtn tbtn-s" onclick="openRapidFlow()">⚡ Rapid</button>
     <button class="tbtn tbtn-s" onclick="openAIInterview()">✦ AI Build</button>
     <button class="tbtn tbtn-s" onclick="openProcesses()">📂 Processes</button>
@@ -786,7 +794,7 @@ function detectShapeGesture(stroke){
   if(Math.abs(w/h-1)<0.5)shapeType='terminal';
   inkStrokes.pop();redrawInk();
   var cx=minX+w/2,cy=minY+h/2;
-  addShape(shapeType,snap(cx-80),snap(cy-30),160,60,'');
+  addShape(shapeType,snap(cx-80),snap(cy-30),160,68,'');
   toast('Shape snapped — tap to label ✓');
 }
 
@@ -795,7 +803,7 @@ function detectShapeGesture(stroke){
 // ═══════════════════════════════════════════════════════════
 function addShape(type,x,y,w,h,label){
   var sc=SHAPE_COLORS[type]||SHAPE_COLORS.action;
-  var s={id:uid(),type:type,x:x,y:y,w:w||170,h:h||58,label:label||'',
+  var s={id:uid(),type:type,x:x,y:y,w:w||170,h:h||68,label:label||'',
     fill:sc.fill,stroke:sc.stroke,textColor:sc.text,
     owner:'',system:'',desc:'',flagged:false,layer:curLayer,
     yesTo:'',noTo:'',notes:'',answered:false,collapsed:false,children:[]};
@@ -811,7 +819,7 @@ function placeShape(type,pt){
     setTimeout(function(){promptLabel(s.id)},80);return;
   }
   if(type==='link'){placeLinkNode(pt);return}
-  var w=type==='terminal'?150:170,h=type==='decision'?65:58;
+  var w=type==='terminal'?150:170,h=type==='decision'?75:68;
   var s=addShape(type,snap(pt.x-w/2),snap(pt.y-h/2),w,h,'');
   setTimeout(function(){promptLabel(s.id)},80);
 }
@@ -927,13 +935,21 @@ function renderShape(s){
     flag.setAttribute('fill','#F59E0B');g.appendChild(flag);
   }
 
-  // Label
+  // Label + subtitle
   var cx=s.x+s.w/2,cy=s.y+s.h/2;
+  // Build subtitle from owner + system
+  var subParts=[];
+  if(s.owner)subParts.push(s.owner);
+  if(s.system)subParts.push(s.system);
+  var subtitle=subParts.join(' · ');
+  var hasSub=subtitle&&s.type!=='container';
   if(s.label){
     var words=s.label.split(' '),lines=[],line='';
     words.forEach(function(w){if((line+' '+w).trim().length>20&&line){lines.push(line.trim());line=w}else line=(line+' '+w).trim()});
     if(line)lines.push(line);
-    var lineH=14,startY=cy-(lines.length-1)*lineH/2;
+    var lineH=13;
+    var totalLabelH=lines.length*lineH+(hasSub?10:0);
+    var startY=cy-totalLabelH/2+lineH/2;
     lines.forEach(function(ln,i){
       var t=document.createElementNS('http://www.w3.org/2000/svg','text');
       t.className.baseVal='shape-label';
@@ -942,6 +958,25 @@ function renderShape(s){
       t.setAttribute('font-size','12');t.setAttribute('fill',s.textColor);
       t.textContent=ln;g.appendChild(t);
     });
+    // Subtitle — thin font beneath
+    if(hasSub){
+      var st=document.createElementNS('http://www.w3.org/2000/svg','text');
+      st.setAttribute('x',cx);st.setAttribute('y',startY+lines.length*lineH+4);
+      st.setAttribute('text-anchor','middle');st.setAttribute('dominant-baseline','middle');
+      st.setAttribute('font-size','8.5');st.setAttribute('fill','#B09A95');
+      st.setAttribute('font-family','Inter,sans-serif');st.setAttribute('font-weight','400');
+      st.setAttribute('letter-spacing','0.2');
+      var subTxt=subtitle.length>30?subtitle.substring(0,28)+'..':subtitle;
+      st.textContent=subTxt;g.appendChild(st);
+    }
+  } else if(hasSub){
+    // No label but has subtitle
+    var st2=document.createElementNS('http://www.w3.org/2000/svg','text');
+    st2.setAttribute('x',cx);st2.setAttribute('y',cy+2);
+    st2.setAttribute('text-anchor','middle');st2.setAttribute('dominant-baseline','middle');
+    st2.setAttribute('font-size','8.5');st2.setAttribute('fill','#B09A95');
+    st2.setAttribute('font-family','Inter,sans-serif');st2.setAttribute('font-weight','400');
+    st2.textContent=subtitle;g.appendChild(st2);
   }
 
   // Port dots (on select)
@@ -1499,20 +1534,20 @@ function buildFromInterview(){
   redrawInk();I('noteLayer').innerHTML='';undoStack=[];
   var CX=220,y=50,prevId=null;
   // Start
-  var startS=addShapeSilent('terminal',snap(CX-75),snap(y),150,50,ivAnswers.trigger||'Start');prevId=startS.id;y+=130;
+  var startS=addShapeSilent('terminal',snap(CX-75),snap(y),150,60,ivAnswers.trigger||'Start');prevId=startS.id;y+=130;
   // Steps
   var decInserted=false;
   stepLines.forEach(function(lbl,i){
     if(hasDec&&!decInserted&&i===Math.floor(stepLines.length/2)){
-      var decS=addShapeSilent('decision',snap(CX-90),snap(y),180,65,ivAnswers.decision);
+      var decS=addShapeSilent('decision',snap(CX-90),snap(y),180,75,ivAnswers.decision);
       addConnSilent(prevId,decS.id,'');prevId=decS.id;y+=150;decInserted=true;
     }
-    var actionS=addShapeSilent('action',snap(CX-90),snap(y),180,58,lbl);
+    var actionS=addShapeSilent('action',snap(CX-90),snap(y),180,68,lbl);
     actionS.owner=ivAnswers.owner||'';
     addConnSilent(prevId,actionS.id,'');prevId=actionS.id;y+=130;
   });
   // End
-  var endS=addShapeSilent('terminal',snap(CX-75),snap(y),150,50,ivAnswers.outcome||'Complete');
+  var endS=addShapeSilent('terminal',snap(CX-75),snap(y),150,60,ivAnswers.outcome||'Complete');
   addConnSilent(prevId,endS.id,'');
   if(hasRisk){
     var rn=addShapeSilent('action',snap(CX+230),90,170,55,ivAnswers.risks);
@@ -2596,7 +2631,7 @@ function loadTemplate(i){
   redrawInk();I('noteLayer').innerHTML='';
   var startX=snap(80),gapY=120;
   t.steps.forEach(function(step,si){
-    var s=addShapeSilent(step.ty,startX,snap(60+si*gapY),160,60,step.t);
+    var s=addShapeSilent(step.ty,startX,snap(60+si*gapY),160,68,step.t);
     s.answered=true;
     if(si>0){var prev=shapes[shapes.length-2];addConnSilent(prev.id,s.id,'')}
   });
@@ -2646,6 +2681,156 @@ function toggleVoice(){
 function stopVoice(){if(voiceRec)voiceRec.stop();voiceActive=false;I('voiceInd').style.display='none'}
 
 // ═══════════════════════════════════════════════════════════
+// FLOW CODE IMPORT — paste structured text to build flows
+// ═══════════════════════════════════════════════════════════
+function openFlowImport(){
+  I('rpTitle').textContent='📋 Import Flow Code';
+  I('rpBody').innerHTML=
+    '<div class="ai-card" style="margin-bottom:8px"><div class="ai-q">Paste Flow Code from Claude to build a complete process instantly.</div></div>'+
+    '<div class="fc-ref">'+
+    '<strong style="color:var(--text);font-size:10px">Format reference</strong><br>'+
+    'Header: <code>title: Name</code> <code>owner: HRSS</code> <code>stage: To-Be</code><br>'+
+    'Separator: <code>---</code><br>'+
+    'Steps: <code>type: Label | owner:X | system:Y</code><br>'+
+    'Types: <code>start</code> <code>end</code> <code>action</code> <code>decision</code> <code>system</code><br>'+
+    'Decisions: <code>decision: Valid? | yes:Next Step | no:Other Step</code><br>'+
+    'Loop-back: <code>action: Fix Record | owner:HRSS > Record Valid?</code>'+
+    '</div>'+
+    '<textarea class="fc-area" id="fcInp" placeholder="title: New Starter Retail\nowner: HRSS\nstage: To-Be\n---\nstart: Offer Accepted\naction: Added to SDWorx | owner:Manager | system:SDWorx\nsystem: HRI Import | owner:HRSS\ndecision: Valid? | yes:MyView Created | no:Fix Record\naction: Fix Record | owner:HRSS > Valid?\nsystem: MyView Created | owner:HRSS | system:HCM Air\nend: Employee Live"></textarea>'+
+    '<div style="display:flex;gap:5px;margin-top:8px">'+
+    '<button class="mbtn mbtn-s" style="flex:1" onclick="buildSketchPanel()">Cancel</button>'+
+    '<button class="mbtn mbtn-p" style="flex:2" onclick="parseFlowCode()">📋 Load Flow</button></div>';
+  if(I('rpanel').classList.contains('collapsed'))togglePanel();
+  setTimeout(function(){var el=I('fcInp');if(el)el.focus()},100);
+}
+function parseFlowCode(){
+  var raw=I('fcInp');if(!raw||!raw.value.trim()){toast('Paste some Flow Code first');return}
+  var text=raw.value;
+  // Split header and steps
+  var parts=text.split(/\n---\n?/);
+  var headerLines=parts.length>1?parts[0].split('\n'):[];
+  var stepLines=parts.length>1?parts[1]:parts[0];
+  // Parse header
+  var meta={};
+  headerLines.forEach(function(line){
+    var m=line.match(/^(\w+)\s*:\s*(.+)$/);
+    if(m)meta[m[1].toLowerCase().trim()]=m[2].trim();
+  });
+  // Apply header
+  if(meta.title)I('docTitle').value=meta.title;
+  if(meta.owner)settings.procOwner=meta.owner;
+  if(meta.stage)settings.procStage=meta.stage;
+  if(meta.id)settings.procId=meta.id;
+  if(meta.category)settings.procCat=meta.category;
+  if(meta.priority)settings.procPri=meta.priority;
+  // Parse step lines
+  var lines=stepLines.split('\n').map(function(l){return str(l)}).filter(function(l){return l&&!l.match(/^---/)});
+  if(!lines.length){toast('No steps found in Flow Code');return}
+  var typeMap={start:'terminal',end:'terminal',terminal:'terminal',begin:'terminal',decision:'decision',system:'system',action:'action',manual:'action',review:'action',link:'link'};
+  var parsed=[];
+  lines.forEach(function(line){
+    // Format: type: Label | owner:X | system:Y | yes:Z | no:W
+    // Optional loop-back: > TargetLabel
+    var loopTo=null;
+    var loopMatch=line.match(/^(.+?)\s*>\s*([^|]+)$/);
+    if(loopMatch){line=loopMatch[1].trim();loopTo=loopMatch[2].trim()}
+    var mainMatch=line.match(/^(\w+)\s*:\s*(.+)$/);
+    var type='action',rest=line;
+    if(mainMatch&&typeMap[mainMatch[1].toLowerCase()]){
+      type=typeMap[mainMatch[1].toLowerCase()];
+      rest=mainMatch[2];
+    }
+    // Parse pipe-separated attributes
+    var segments=rest.split('|').map(function(s){return str(s)});
+    var label=segments[0]||'';
+    var attrs={};
+    segments.slice(1).forEach(function(seg){
+      var am=seg.match(/^(\w+)\s*:\s*(.+)$/);
+      if(am)attrs[am[1].toLowerCase().trim()]=am[2].trim();
+    });
+    parsed.push({
+      type:type,label:label,
+      owner:attrs.owner||attrs.o||meta.owner||'',
+      system:attrs.system||attrs.sys||attrs.s||'',
+      desc:attrs.desc||attrs.description||attrs.d||'',
+      yesTo:attrs.yes||attrs.y||'',
+      noTo:attrs.no||attrs.n||'',
+      loopTo:loopTo,
+      flagged:!!(attrs.flag||attrs.risk)
+    });
+  });
+  // Confirm and build
+  if(shapes.length){
+    if(!confirm('Clear canvas and build '+parsed.length+' steps?'))return;
+    shapes=[];conns=[];notes.forEach(function(n){n.el.remove()});notes=[];
+    inkStrokes=[];redrawInk();I('noteLayer').innerHTML='';undoStack=[];
+  }
+  // Create shapes vertically
+  var CX=snap(200),y=snap(60);
+  var labelToId={};
+  parsed.forEach(function(p){
+    var w=p.type==='terminal'?150:p.type==='decision'?180:p.type==='link'?180:170;
+    var h=p.type==='decision'?65:58;
+    var s=addShapeSilent(p.type,CX,snap(y),w,h,p.label);
+    s.owner=p.owner;s.system=p.system;s.desc=p.desc;
+    s.yesTo=p.yesTo;s.noTo=p.noTo;s.flagged=p.flagged;
+    if(p.loopTo)s._loopTo=p.loopTo;
+    labelToId[p.label.toLowerCase()]=s.id;
+    y+=h+80;
+  });
+  // Create sequential connections
+  var allSteps=shapes.filter(function(s){return s.type!=='container'});
+  for(var i=0;i<allSteps.length-1;i++){
+    // For decisions, label the forward connection as YES if yesTo matches next
+    var cur=allSteps[i],next=allSteps[i+1];
+    var lbl='';
+    if(cur.type==='decision'){
+      if(cur.yesTo&&cur.yesTo.toLowerCase()===next.label.toLowerCase())lbl='YES';
+      else if(cur.noTo&&cur.noTo.toLowerCase()!==next.label.toLowerCase())lbl='YES';
+    }
+    addConnSilent(cur.id,next.id,lbl);
+  }
+  // Create decision NO routes and loop-backs
+  allSteps.forEach(function(s){
+    // Decision NO route
+    if(s.type==='decision'&&s.noTo){
+      var targetId=labelToId[s.noTo.toLowerCase()];
+      if(targetId&&!conns.find(function(c){return c.from===s.id&&c.to===targetId})){
+        var c={id:uid(),from:s.id,to:targetId,label:'NO',color:'#B85C52',style:'dashed',cpX:null,cpY:null,width:1.5};
+        // Offset the control point so it doesn't overlap the main flow
+        var src=shapes.find(function(x){return x.id===s.id});
+        var tgt=shapes.find(function(x){return x.id===targetId});
+        if(src&&tgt)c.cpX=src.x+src.w+80;
+        conns.push(c);
+      }
+    }
+    // Decision YES route (if not already the next sequential step)
+    if(s.type==='decision'&&s.yesTo){
+      var yesId=labelToId[s.yesTo.toLowerCase()];
+      if(yesId){
+        var existing=conns.find(function(c){return c.from===s.id&&c.to===yesId});
+        if(existing&&!existing.label)existing.label='YES';
+        else if(!existing)addConnSilent(s.id,yesId,'YES');
+      }
+    }
+    // Loop-back
+    if(s._loopTo){
+      var loopId=labelToId[s._loopTo.toLowerCase()];
+      if(loopId&&!conns.find(function(c){return c.from===s.id&&c.to===loopId})){
+        var lc={id:uid(),from:s.id,to:loopId,label:'',color:'#7A6068',style:'dashed',cpX:null,cpY:null,width:1.5};
+        var ls=shapes.find(function(x){return x.id===s.id});
+        if(ls)lc.cpX=ls.x-80;
+        conns.push(lc);
+      }
+      delete s._loopTo;
+    }
+  });
+  renderShapes();fitScreen();
+  toast('Flow built: '+parsed.length+' steps from Flow Code');autoSave();
+  I('rpTitle').textContent='Sketch Assistant';buildSketchPanel();
+}
+
+// ═══════════════════════════════════════════════════════════
 // QUICK-ADD — tap "+" to add a connected step instantly
 // ═══════════════════════════════════════════════════════════
 function quickAdd(){
@@ -2653,7 +2838,7 @@ function quickAdd(){
   var last=nonC.length?nonC[nonC.length-1]:null;
   var x=last?last.x:snap(200);
   var y=last?last.y+last.h+80:snap(60);
-  var s=addShape('action',snap(x),snap(y),170,58,'');
+  var s=addShape('action',snap(x),snap(y),170,68,'');
   if(last){
     conns.push({id:uid(),from:last.id,to:s.id,label:'',color:'#C9847A',style:'solid',cpX:null,cpY:null,width:1.5});
   }
@@ -2757,7 +2942,7 @@ document.addEventListener('paste',function(e){
       else if(ll.includes('system')||ll.includes('import')||ll.includes('auto')||ll.includes('email'))type='system';
     }
     var w=type==='terminal'?150:type==='decision'?180:170;
-    var h=type==='decision'?65:58;
+    var h=type==='decision'?75:68;
     var s=addShapeSilent(type,snap(CX),snap(startY),w,h,label);
     if(prevId)addConnSilent(prevId,s.id,'');
     prevId=s.id;startY+=h+80;
